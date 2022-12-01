@@ -1,0 +1,12 @@
+scikit-learn
+altair
+vega_datasets
+matplotlib
+plotly
+bokeh
+seaborn
+pandas
+numpy
+pmlb
+notebook
+imblearn
