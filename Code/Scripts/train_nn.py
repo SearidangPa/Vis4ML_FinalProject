@@ -5,17 +5,32 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-import random
 import numpy as np
 import pmlb
+
 
 """
 I took a lot of inspiration from this blog post 
 Reference: https://towardsdatascience.com/pytorch-tabular-binary-classification-a0368da5bb89
 """
 
+class BinaryClassification(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(8, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 1)
+        self.dropout2 = nn.Dropout(p=0.2)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.dropout2(x)
+        x = self.fc3(x)
+        return x
+
 class PimaDataset(Dataset):
-    def __init__(self, X_df, y_df, training_Mode):
+    def __init__(self, X_df, y_df):
         X = X_df.copy()
         y = y_df.copy()
         self.X = torch.tensor(X.values.astype(np.float32))
@@ -28,43 +43,12 @@ class PimaDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 
-class BinaryClassification(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.fc1 = nn.Linear(8, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, 1)
-
-        self.dropout2 = nn.Dropout(p=0.1)
-        
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.dropout2(x)
-        x = self.fc3(x)
-
-        return x
-
-def ProcessData(df):
-    # impute the missing input feature values with the median of the target class  
-    imputeFeatures = ['plasma glucose', 'Diastolic blood pressure', 'Triceps skin fold thickness', 'Body mass index', '2-Hour serum insulin']
-    for feature in imputeFeatures:
-        df.loc[(df.target==0) & (df[feature] == 0), feature] = df[df.target==0][feature].median()
-        df.loc[(df.target==1) & (df[feature] == 0), feature] = df[df.target==1][feature].median()
-    
-    # split
-    X = df.drop(['target'], axis=1)
-    Y = df['target']
-    X_train_df, X_test_df, y_train_df, y_test_df = train_test_split(X, Y, test_size=0.25, random_state=42)
-    return X_train_df, X_test_df, y_train_df, y_test_df
-
-
-def Train_Model(model, X_train_df, y_train_df):
-    criterion = nn.BCEWithLogitsLoss()
+def Train_Model(model, X_train_df, y_train_df, class_ratio):
+    pos_weight = class_ratio * torch.ones([1])
+    criterion = nn.BCEWithLogitsLoss(pos_weight)
     optimizer = optim.Adam(model.parameters(), lr=0.001,  weight_decay = 0.0001)
 
-    train_Dataset = PimaDataset(X_train_df, y_train_df, training_Mode = True)
+    train_Dataset = PimaDataset(X_train_df, y_train_df)
     train_loader = DataLoader(train_Dataset, batch_size=64)
 
     model.train()
@@ -87,7 +71,7 @@ def Train_Model(model, X_train_df, y_train_df):
                 l1_regularization = l1_regularization + torch.norm(p, 1)
 
             loss = criterion(y_pred, y_batch.unsqueeze(1)) + lambda1 * l1_regularization
-            acc = binary_acc(y_pred, y_batch.unsqueeze(1))
+            acc = batch_acc(y_pred, y_batch.unsqueeze(1))
 
             loss.backward()
             optimizer.step()
@@ -97,8 +81,8 @@ def Train_Model(model, X_train_df, y_train_df):
 
         if e % 100 == 0:    
             print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
-          
-def binary_acc(y_pred, y_test):
+
+def batch_acc(y_pred, y_test):
     y_pred_tag = torch.round(torch.sigmoid(y_pred))
     num_correct_results = (y_pred_tag == y_test).sum().float()
     acc = num_correct_results/y_test.shape[0]
@@ -106,15 +90,14 @@ def binary_acc(y_pred, y_test):
     return acc
 
 def Eval_Model(model, X_test_df, y_test_df):
-    test_Dataset = PimaDataset(X_test_df, y_test_df, training_Mode = False)
+    test_Dataset = PimaDataset(X_test_df, y_test_df)
     test_loader = DataLoader(dataset = test_Dataset, batch_size = 1)
 
     y_pred_list = []
     model.eval()
     with torch.no_grad():
          for X_test, _ in test_loader:
-            y_test_pred = model(X_test)
-            y_test_pred = torch.sigmoid(y_test_pred)
+            y_test_pred = torch.sigmoid(model(X_test))
             y_pred_tag = torch.round(y_test_pred)
             y_pred_list.append(y_pred_tag.numpy())
             
@@ -128,14 +111,36 @@ def Eval_Model(model, X_test_df, y_test_df):
     cm = df_test.groupby(['target', 'prediction'], as_index=False).size()
     print(cm)
 
+def ProcessData(df):
+    # impute the missing input feature values with the median of the target class  
+    imputeFeatures = ['plasma glucose', 'Diastolic blood pressure', 'Triceps skin fold thickness', 'Body mass index', '2-Hour serum insulin']
+    for feature in imputeFeatures:
+        df.loc[(df.target==0) & (df[feature] == 0), feature] = df[df.target==0][feature].median()
+        df.loc[(df.target==1) & (df[feature] == 0), feature] = df[df.target==1][feature].median()
+    
+    # split
+    X = df.drop(['target'], axis=1)
+    Y = df['target']
+
+    X_normalized=(X - X.mean()) / X.std()
+
+    X_train_df, X_test_df, y_train_df, y_test_df = train_test_split(X_normalized, Y, test_size=0.25, random_state=42)
+    return X_train_df, X_test_df, y_train_df, y_test_df
+
 
 def main():
     model_path = '../Weights/Model/nn1.pt'
+    
+    # load the data
     df = pmlb.fetch_data('pima')
     X_train_df, X_test_df, y_train_df, y_test_df = ProcessData(df)
     
+    # train the model
     model = BinaryClassification()    
-    Train_Model(model, X_train_df, y_train_df)
+    class_ratio = sum(df['target'] == 0) / sum(df['target'] == 1)
+    Train_Model(model, X_train_df, y_train_df, class_ratio)
+
+    # Print out accuracy score and confusion matrix
     Eval_Model(model, X_test_df, y_test_df)
 
     #save the model
