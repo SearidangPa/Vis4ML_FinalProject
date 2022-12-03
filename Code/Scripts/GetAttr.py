@@ -1,9 +1,8 @@
-from captum.attr import IntegratedGradients, KernelShap, Lime
+from captum.attr import IntegratedGradients, KernelShap, NoiseTunnel, DeepLift
 from sklearn.model_selection import train_test_split
 import torch.nn.functional as F
 import torch.nn as nn
 import numpy as np
-import pickle
 import torch 
 import pmlb
 import pandas as pd
@@ -62,7 +61,6 @@ def Get_Shap_Attr(model, X):
     attr = ks.attribute(X_tensor, n_samples=500)
     shap_df = pd.DataFrame(attr.numpy(), columns = X.columns)
     shap_df.to_pickle(shap_filename)
-    shap_df = pd.read_pickle(shap_filename)
 
 
 #--------------------------LIME------------------------
@@ -76,7 +74,7 @@ def Get_Lime_attr(model, X):
         training_data = X_np,
         feature_names = feature_names,
         mode = 'classification',
-        kernel_width = 0.5,
+        kernel_width = 0.75,
         random_state = 42
     )
 
@@ -100,7 +98,8 @@ def Get_Lime_attr(model, X):
     lime_weights_df = pd.DataFrame(data=weights, columns=X.columns)
     lime_infos_df = pd.DataFrame(data=lime_infos, columns=['intercept','local_pred', 'model_pred'])
     lime_weights_df.to_pickle(lime_weights_filename)
-    lime_infos_df.to_pickle(lime_infos_filename)
+    lime_infos_df.to_pickle(lime_infos_filename) 
+
 
 # get the weights of each feature of the instance explanation 
 def get_weights_from_exp(exp): 
@@ -109,18 +108,46 @@ def get_weights_from_exp(exp):
     exp_weight = [x[1] for x in exp_list]
     return exp_weight
 
-#-----------------------to-do: try a different baseline-------------------- 
+#  -----------Integrated Gradient---------------
+# to-do: try a different baseline 
 def Get_IG_attr(model, X):
     ig_attr_filename = '../Weights/Attr/ig_attr.pkl'
     ig = IntegratedGradients(model)
-
     X_tensor_grad = torch.tensor(X.values.astype(np.float32)).requires_grad_()   
-    feature_attr, delta = ig.attribute(X_tensor_grad, return_convergence_delta=True)
-    attr = feature_attr.detach().numpy()
+    
+    nt = NoiseTunnel(ig)
+
+    attr, delta = nt.attribute(
+        X_tensor_grad, 
+        nt_type ='smoothgrad',
+        nt_samples=10,
+        return_convergence_delta=True
+    )
+    attr = attr.detach().numpy()
     
     # save into a dataframe
     ig_attr_df = pd.DataFrame(data = attr, columns = X.columns)
     ig_attr_df.to_pickle(ig_attr_filename)
+
+def Get_DeepLift_attr(model, X):
+    deepLift_filename = '../Weights/Attr/deepLift_attr.pkl'
+    dl = DeepLift(model)
+    X_tensor_grad = torch.tensor(X.values.astype(np.float32)).requires_grad_()   
+    
+    nt = NoiseTunnel(dl)
+
+    attr, delta = nt.attribute(
+        X_tensor_grad, 
+        nt_type ='smoothgrad',
+        nt_samples=10,
+        return_convergence_delta=True
+    )
+    attr = attr.detach().numpy()
+    print(delta.detach().numpy())
+    
+    # save into a dataframe
+    deepLift_df = pd.DataFrame(data = attr, columns = X.columns)
+    deepLift_df.to_pickle(deepLift_filename)
 
 
 def main():
@@ -130,10 +157,11 @@ def main():
     model = torch.load(model_path)
     X, y = ProcessData(df)
     
+    # Generate feature attributions by various methods 
     # Get_Shap_Attr(model, X)
     # Get_Lime_attr(model, X)
     # Get_IG_attr(model, X)
-    
+    Get_DeepLift_attr(model, X)
 
     
    
