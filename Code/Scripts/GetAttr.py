@@ -7,6 +7,7 @@ import torch
 import pmlb
 import pandas as pd
 from lime import lime_tabular
+from sklearn.manifold import TSNE
 import warnings
 warnings.filterwarnings("ignore")
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
@@ -27,6 +28,7 @@ class BinaryClassification(nn.Module):
         x = self.fc3(x)
         return x
  
+    # Can handle numpy and tensor. Cannot handle panda dataframe
     def predict(self, x):
         self.eval()
         with torch.no_grad():
@@ -109,7 +111,6 @@ def get_weights_from_exp(exp):
     return exp_weight
 
 #  -----------Integrated Gradient---------------
-# to-do: try a different baseline 
 def Get_IG_attr(model, X):
     ig_attr_filename = '../Weights/Attr/ig_attr.pkl'
     ig = IntegratedGradients(model)
@@ -128,6 +129,8 @@ def Get_IG_attr(model, X):
     # save into a dataframe
     ig_attr_df = pd.DataFrame(data = attr, columns = X.columns)
     ig_attr_df.to_pickle(ig_attr_filename)
+
+#  -----------DeepLift---------------
 
 def Get_DeepLift_attr(model, X):
     deepLift_filename = '../Weights/Attr/deepLift_attr.pkl'
@@ -149,6 +152,48 @@ def Get_DeepLift_attr(model, X):
     deepLift_df = pd.DataFrame(data = attr, columns = X.columns)
     deepLift_df.to_pickle(deepLift_filename)
 
+#  --------------------------------------
+def Get_Model_Prediction(model, X):
+    predictProb_filename = '../Weights/Model/predict_prob.pkl'
+    predict_prob = model.predict(X)
+    predict_prob_df = pd.DataFrame(data = predict_prob, columns = ['predict_prob'])
+    predict_prob_df.to_pickle(predictProb_filename)
+    return predict_prob_df
+
+def Get_Attr_tsne(predict_prob_df, y):
+    attr_tsne_filename = '../Weights/Attr/attr_tsne.pkl'
+    tsne = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=30)
+
+    # load shap value df 
+    shap_filename = '../Weights/Attr/Shap_nn.pkl'
+    shap_values_df = pd.read_pickle(shap_filename)
+
+    # Lime 
+    lime_weights_filename = '../Weights/Attr/lime_weights.pkl'
+    lime_weights_df = pd.read_pickle(lime_weights_filename)
+
+    # Integrated Gradients
+    ig_attr_filename = '../Weights/Attr/ig_attr.pkl'
+    ig_attr_df = pd.read_pickle(ig_attr_filename)
+
+    # Deep Lift
+    deepLift_filename = '../Weights/Attr/deepLift_attr.pkl'
+    deepLift_df = pd.read_pickle(deepLift_filename)
+
+    # put the embedding of shap values into a df
+    attr_embedded_df = pd.DataFrame()
+    attr_embedded_df['predict_prob'] = predict_prob_df
+    attr_embedded_df['label'] = y
+
+    attr_methods = ['lime', 'shap', 'ig', 'deepLift']
+    attr_df_list = [lime_weights_df, shap_values_df, ig_attr_df, deepLift_df]
+    for i in range(len(attr_methods)):
+        attr_embedded = tsne.fit_transform(attr_df_list[i])
+        attr_embedded_df[attr_methods[i]+'_x-tsne'] = attr_embedded[:, 0]
+        attr_embedded_df[attr_methods[i]+'_y-tsne'] = attr_embedded[:, 1]
+    
+    attr_embedded_df.to_pickle(attr_tsne_filename)
+
 
 def main():
     model_path = '../Weights/Model/nn.pt'
@@ -157,13 +202,15 @@ def main():
     model = torch.load(model_path)
     X, y = ProcessData(df)
     
-    # Generate feature attributions by various methods 
+    # # Generate feature attributions by various methods 
     # Get_Shap_Attr(model, X)
     # Get_Lime_attr(model, X)
     # Get_IG_attr(model, X)
-    Get_DeepLift_attr(model, X)
+    # Get_DeepLift_attr(model, X)
 
-    
+    # # Generate model prediction for visualization 
+    predict_prob_df = Get_Model_Prediction(model, X.values.astype(np.float32))
+    Get_Attr_tsne(predict_prob_df, y)
    
 
 
