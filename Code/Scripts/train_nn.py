@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import numpy as np
-import pmlb
+import pandas as pd
 
 
 """
@@ -111,17 +111,16 @@ def Eval_Model(model, X_test_df, y_test_df):
     cm = df_test.groupby(['target', 'prediction'], as_index=False).size()
     print(cm)
 
-def ProcessData(df):
-    # impute the missing input feature values with the median of the target class  
-    imputeFeatures = ['plasma glucose', 'Diastolic blood pressure', 'Triceps skin fold thickness', 'Body mass index', '2-Hour serum insulin']
-    for feature in imputeFeatures:
-        df.loc[(df.target==0) & (df[feature] == 0), feature] = df[df.target==0][feature].median()
-        df.loc[(df.target==1) & (df[feature] == 0), feature] = df[df.target==1][feature].median()
-    
+def ProcessData():
+    # load the processed dataframe 
+    data_filename = '../Saved/Model/data.pkl'
+    df = pd.read_pickle(data_filename)
+
     # split
     X = df.drop(['target'], axis=1)
     Y = df['target']
 
+    # normalize each column of the data
     X_normalized=(X - X.mean()) / X.std()
 
     X_train_df, X_test_df, y_train_df, y_test_df = train_test_split(X_normalized, Y, test_size=0.25, random_state=42)
@@ -129,11 +128,10 @@ def ProcessData(df):
 
 
 def main():
-    model_path = '../Weights/Model/nn1.pt'
+    model_path = '../Saved/Model/new.pt'
     
     # load the data
-    df = pmlb.fetch_data('pima')
-    X_train_df, X_test_df, y_train_df, y_test_df = ProcessData(df)
+    X_train_df, X_test_df, y_train_df, y_test_df = ProcessData()
     
     # train the model
     model = BinaryClassification()    
@@ -145,6 +143,7 @@ def main():
 
     #save the model
     torch.save(model, model_path)
+
    
 
 if __name__ == '__main__':

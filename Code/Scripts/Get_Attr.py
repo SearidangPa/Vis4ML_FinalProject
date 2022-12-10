@@ -4,11 +4,11 @@ import torch.nn.functional as F
 import torch.nn as nn
 import numpy as np
 import torch 
-import pmlb
 import pandas as pd
 from lime import lime_tabular
 from sklearn.manifold import TSNE
 import warnings
+
 warnings.filterwarnings("ignore")
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 pd.options.display.float_format = '{:.3f}'.format
@@ -37,38 +37,32 @@ class BinaryClassification(nn.Module):
             prob = torch.sigmoid(self.forward(x)).detach().numpy()
         return prob
 
-def ProcessData(df):
-    # impute the missing input feature values with the median of the target class  
-    imputeFeatures = ['plasma glucose', 'Diastolic blood pressure', 'Triceps skin fold thickness', 'Body mass index', '2-Hour serum insulin']
-    for feature in imputeFeatures:
-        df.loc[(df.target==0) & (df[feature] == 0), feature] = df[df.target==0][feature].median()
-        df.loc[(df.target==1) & (df[feature] == 0), feature] = df[df.target==1][feature].median()
-    
-    # split
-    X = df.drop(['target'], axis=1)
-    y = df['target']
-
-    X_normalized=(X - X.mean()) / X.std()
-    return X_normalized, y
-
 
 # ----------------- SHAP ------------------
 def Get_Shap_Attr(model, X):
-    shap_filename = '../Weights/Attr/Shap_nn.pkl'
+    shap_filename = '../Saved/Attr/Shap_nn.pkl'
     ks = KernelShap(model)
 
     X_np = X.values.astype(np.float32)
     X_tensor = torch.tensor(X_np)
 
     attr = ks.attribute(X_tensor, n_samples=500)
-    shap_df = pd.DataFrame(attr.numpy(), columns = X.columns)
-    shap_df.to_pickle(shap_filename)
+    shap_values_df = pd.DataFrame(attr.numpy(), columns = X.columns)
+    shap_values_df.to_pickle(shap_filename)
+    return shap_values_df
 
 
 #--------------------------LIME------------------------
+# get the weights of each feature of the instance explanation 
+def get_weights_from_exp(exp): 
+    exp_list = exp.as_map()[0]
+    exp_list = sorted(exp_list, key=lambda x: x[0])
+    exp_weight = [x[1] for x in exp_list]
+    return exp_weight
+
 def Get_Lime_attr(model, X):
-    lime_weights_filename = '../Weights/Attr/lime_weights.pkl'
-    lime_infos_filename = '../Weights/Attr/lime_infos.pkl'
+    lime_weights_filename = '../Saved/Attr/lime_weights.pkl'
+    lime_infos_filename = '../Saved/Attr/lime_infos.pkl'
     X_np = X.values.astype(np.float32)
     feature_names = list(X.columns)
 
@@ -96,23 +90,18 @@ def Get_Lime_attr(model, X):
         lime_data = [exp.intercept[0], exp.local_pred[0], model.predict(X_np[i])[0]]
         lime_infos.append(lime_data)
 
-    # Create DataFrame
+    # Create and save DataFrame
     lime_weights_df = pd.DataFrame(data=weights, columns=X.columns)
     lime_infos_df = pd.DataFrame(data=lime_infos, columns=['intercept','local_pred', 'model_pred'])
     lime_weights_df.to_pickle(lime_weights_filename)
     lime_infos_df.to_pickle(lime_infos_filename) 
+    return lime_weights_df
 
-
-# get the weights of each feature of the instance explanation 
-def get_weights_from_exp(exp): 
-    exp_list = exp.as_map()[0]
-    exp_list = sorted(exp_list, key=lambda x: x[0])
-    exp_weight = [x[1] for x in exp_list]
-    return exp_weight
 
 #  -----------Integrated Gradient---------------
+
 def Get_IG_attr(model, X):
-    ig_attr_filename = '../Weights/Attr/ig_attr.pkl'
+    ig_attr_filename = '../Saved/Attr/ig_attr.pkl'
     ig = IntegratedGradients(model)
     X_tensor_grad = torch.tensor(X.values.astype(np.float32)).requires_grad_()   
     
@@ -129,11 +118,12 @@ def Get_IG_attr(model, X):
     # save into a dataframe
     ig_attr_df = pd.DataFrame(data = attr, columns = X.columns)
     ig_attr_df.to_pickle(ig_attr_filename)
+    return ig_attr_df
 
 #  -----------DeepLift---------------
 
 def Get_DeepLift_attr(model, X):
-    deepLift_filename = '../Weights/Attr/deepLift_attr.pkl'
+    deepLift_filename = '../Saved/Attr/deepLift_attr.pkl'
     dl = DeepLift(model)
     X_tensor_grad = torch.tensor(X.values.astype(np.float32)).requires_grad_()   
     
@@ -146,76 +136,88 @@ def Get_DeepLift_attr(model, X):
         return_convergence_delta=True
     )
     attr = attr.detach().numpy()
-    print(delta.detach().numpy())
     
     # save into a dataframe
     deepLift_df = pd.DataFrame(data = attr, columns = X.columns)
     deepLift_df.to_pickle(deepLift_filename)
+    return deepLift_df
 
-#  --------------------------------------
-def Get_Model_Prediction(model, X):
-    predictProb_filename = '../Weights/Model/predict_prob.pkl'
-    predict_prob = model.predict(X)
-    predict_prob_df = pd.DataFrame(data = predict_prob, columns = ['predict_prob'])
-    predict_prob_df.to_pickle(predictProb_filename)
-    return predict_prob_df
+#  ------------------------------------------
 
-def Get_Attr_tsne(predict_prob_df, y):
-    attr_tsne_filename = '../Weights/Attr/attr_tsne.pkl'
-    tsne = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=30)
-
-    # load shap value df 
-    shap_filename = '../Weights/Attr/Shap_nn.pkl'
-    shap_values_df = pd.read_pickle(shap_filename)
-
-    # Lime 
-    lime_weights_filename = '../Weights/Attr/lime_weights.pkl'
-    lime_weights_df = pd.read_pickle(lime_weights_filename)
-
-    # Integrated Gradients
-    ig_attr_filename = '../Weights/Attr/ig_attr.pkl'
-    ig_attr_df = pd.read_pickle(ig_attr_filename)
-
-    # Deep Lift
-    deepLift_filename = '../Weights/Attr/deepLift_attr.pkl'
-    deepLift_df = pd.read_pickle(deepLift_filename)
-
-    # put the embedding of shap values into a df
-    attr_embedded_df = pd.DataFrame()
-    attr_embedded_df['predict_prob'] = predict_prob_df
-    attr_embedded_df['label'] = y
-
-    attr_methods = ['lime', 'shap', 'ig', 'deepLift']
-    attr_df_list = [lime_weights_df, shap_values_df, ig_attr_df, deepLift_df]
-    for i in range(len(attr_methods)):
-        attr_embedded = tsne.fit_transform(attr_df_list[i])
-        attr_embedded_df[attr_methods[i]+'_x-tsne'] = attr_embedded[:, 0]
-        attr_embedded_df[attr_methods[i]+'_y-tsne'] = attr_embedded[:, 1]
+def ProcessData():
+    data_filename = '../Saved/Model/data.pkl'
+    df = pd.read_pickle(data_filename)
     
-    attr_embedded_df.to_pickle(attr_tsne_filename)
+    # split
+    X = df.drop(['target'], axis=1)
+    y = df['target']
 
+    X_normalized=(X - X.mean()) / X.std()
+    return X_normalized, y
+
+def Get_Attr_Signed_Rank(dict_name_to_attr_df, dict_name_to_rank_df):
+    dict_name_to_rank_filename = {
+        'shap': '../Saved/Attr/shap_rank.pkl', 
+        'lime': '../Saved/Attr/lime_rank.pkl', 
+        'ig': '../Saved/Attr/ig_rank.pkl', 
+        'deepLift': '../Saved/Attr/deepLift_rank.pkl'
+    }
+
+    for method_name, rank_df in dict_name_to_rank_df.items():
+        # get the rank
+        for j in range (dict_name_to_attr_df[method_name].shape[0]):
+            rank_df.loc[j] = dict_name_to_attr_df[method_name].loc[j].abs().rank()
+    
+        # get the sign 
+        for feature in dict_name_to_attr_df[method_name].columns:
+            rank_df.loc[dict_name_to_attr_df[method_name][feature] < 0, feature] *= -1
+    
+        # save the signed feature rank dataframe 
+        rank_df.to_pickle(dict_name_to_rank_filename[method_name]) 
 
 def main():
-    model_path = '../Weights/Model/nn.pt'
+    # load the dataset and normalized the data
+    X_normed, _ = ProcessData()
+
     # load model and data 
-    df = pmlb.fetch_data('pima')
+    model_path = '../Saved/Model/nn.pt'
     model = torch.load(model_path)
-    X, y = ProcessData(df)
+
+    # Generate feature attributions by various methods 
+    shap_values_df = Get_Shap_Attr(model, X_normed)
+    print("done computing shap_values")
+
+    lime_weights_df = Get_Lime_attr(model, X_normed)
+    print("done computing lime_weight")
     
-    # # Generate feature attributions by various methods 
-    # Get_Shap_Attr(model, X)
-    # Get_Lime_attr(model, X)
-    # Get_IG_attr(model, X)
-    # Get_DeepLift_attr(model, X)
+    ig_attr_df = Get_IG_attr(model, X_normed)
+    print("done computing ig_attr")
+    
+    deepLift_df = Get_DeepLift_attr(model, X_normed)
+    print("done computing deepLift_attr")
 
-    # # Generate model prediction for visualization 
-    predict_prob_df = Get_Model_Prediction(model, X.values.astype(np.float32))
-    Get_Attr_tsne(predict_prob_df, y)
+    # Create empty dataframe for attr signed rank
+    shap_rank = pd.DataFrame(pd.DataFrame(columns = X_normed.columns))
+    lime_rank = pd.DataFrame(pd.DataFrame(columns = X_normed.columns))
+    ig_rank = pd.DataFrame(pd.DataFrame(columns = X_normed.columns))
+    deepLift_rank = pd.DataFrame(pd.DataFrame(columns = X_normed.columns)) 
+
+    dict_name_to_attr_df = {
+        'shap': shap_values_df, 
+        'lime': lime_weights_df, 
+        'ig': ig_attr_df, 
+        'deepLift': deepLift_df,
+    }
+    dict_name_to_rank_df= {
+        'shap': shap_rank, 
+        'lime': lime_rank, 
+        'ig': ig_rank, 
+        'deepLift': deepLift_rank,
+    }
+
+    # Get the attr signed rank 
+    Get_Attr_Signed_Rank(dict_name_to_attr_df, dict_name_to_rank_df)
    
-
-
-
-
 
 
 if __name__ == '__main__':
