@@ -7,103 +7,121 @@ X = df.drop(['target'], axis=1)
 y = df['target']
 
 # ----------------load all the attr values----------------
-# shap 
 shap_filename = '../Saved/Attr/Shap_nn.pkl'
-shap_values_df = pd.read_pickle(shap_filename)
-
-# Lime 
 lime_weights_filename = '../Saved/Attr/lime_weights.pkl'
-lime_weights_df = pd.read_pickle(lime_weights_filename)
-
-# Integrated Gradients
 ig_attr_filename = '../Saved/Attr/ig_attr.pkl'
-ig_attr_df = pd.read_pickle(ig_attr_filename)
-
-# Deep Lift
 deepLift_filename = '../Saved/Attr/deepLift_attr.pkl'
-deepLift_df = pd.read_pickle(deepLift_filename)
-
-# melt 
-shap_values_melted = shap_values_df.melt(ignore_index=False)
-lime_weights_melted = lime_weights_df.melt(ignore_index=False)
-ig_attr_melted = ig_attr_df.melt(ignore_index=False)
-deepLift_attr_melted = deepLift_df.melt(ignore_index=False)
 
 # ----------------dict----------------
-dict_name_to_attr_df = {
-    'shap': shap_values_df, 
-    'lime': lime_weights_df, 
-    'ig': ig_attr_df, 
-    'deepLift': deepLift_df,
+name_to_attr_df = {
+    'shap': pd.read_pickle(shap_filename), 
+    'lime': pd.read_pickle(lime_weights_filename), 
+    'ig': pd.read_pickle(ig_attr_filename), 
+    'deepLift': pd.read_pickle(deepLift_filename),
 }
 
-dict_name_to_rank_filename = {
+name_to_rank_filename = {
     'shap': '../Saved/Attr/shap_rank.pkl', 
     'lime': '../Saved/Attr/lime_rank.pkl', 
     'ig': '../Saved/Attr/ig_rank.pkl', 
     'deepLift': '../Saved/Attr/deepLift_rank.pkl'
 }
 
-dict_method_name_to_attr_name = {
+method_name_to_attr_name = {
     'shap' : 'shap_value',
     'lime': 'lime_weight', 
     'ig':  'ig_attr', 
     'deepLift':'deepLift_attr' 
 }
 
-dict_name_to_attr_rank_df= {}
-for method_name, rank_file_name in dict_name_to_rank_filename.items():
-    dict_name_to_attr_rank_df[method_name]= pd.read_pickle(rank_file_name)
-
+name2rank_df= {}
+for method_name, rank_file_name in name_to_rank_filename.items():
+    name2rank_df[method_name]= pd.read_pickle(rank_file_name)
 
 # ------------mean abs feature attr value and rank----------------
-mean_attr = pd.DataFrame(shap_values_df.abs().mean()).reset_index()
-mean_attr.columns = ['feature_name', 'shap_value']
-mean_attr['lime_weight'] = lime_weights_df.abs().mean().values
-mean_attr['ig_attr'] = ig_attr_df.abs().mean().values
-mean_attr['deepLift_attr'] = deepLift_df.abs().mean().values
+mean_attr = pd.DataFrame(data = X.columns, columns=['feature_name'])
+for method_name, attr_df in name_to_attr_df.items():
+    mean_attr[method_name_to_attr_name[method_name]] = attr_df.abs().mean().values
 
 # compute the rank 
-for method_name, attr_name in dict_method_name_to_attr_name.items():
+for method_name, attr_name in method_name_to_attr_name.items():
     mean_attr[method_name + '_rank'] = mean_attr[attr_name].rank()
 
-# compute the sum of rank of all methods
+# compute the sum of abs rank of all methods
 mean_attr['sum_rank'] = mean_attr[['shap_rank', 'lime_rank', 'ig_rank', 'deepLift_rank']].abs().sum(axis=1)
-
-# melt for visualization
+# melt and save 
 mean_attr_melted = mean_attr.melt(ignore_index = False, id_vars=['feature_name'])
 mean_attr_melted.columns = ['feature_name', 'method', 'feature_attr']
-
-# save mean_attr dataframe
 mean_attr_filename = '../Saved/4vis/mean_attr.pkl'
 mean_attr_melted.to_pickle(mean_attr_filename)
 
-# ------------Individual DataPoint Visualization----------------
-# Put all feature attributions into a single dataframe
+# # ------------Individual DataPoint Visualization----------------
+# # Melt all feature attributions into a single dataframe
 Indiv_melted_filename = '../Saved/4vis/Indiv_melted.pkl'
 Indiv_filename = '../Saved/4vis/Indiv.pkl'
-
 Indiv_df = X.melt(ignore_index=False)
 Indiv_df.columns = ['feature_name', 'feature_value']
 
-Indiv_df['shap_value'] = shap_values_melted['value']
-Indiv_df['lime_weight'] = lime_weights_melted['value']
-Indiv_df['ig_attr'] = ig_attr_melted['value']
-Indiv_df['deepLift_attr'] = deepLift_attr_melted['value']
-
-for method_name, rank_df in dict_name_to_attr_rank_df.items():
-    Indiv_df[method_name + '_rank'] = rank_df.melt(ignore_index=False)['value']
+for method_name, attr_df in name_to_attr_df.items():
+    Indiv_df[method_name_to_attr_name[method_name]] = attr_df.melt(ignore_index=False)['value']
+    Indiv_df[method_name + '_rank'] = name2rank_df[method_name].melt(ignore_index=False)['value'] 
 
 Indiv_df['sum_rank'] = Indiv_df[['shap_rank', 'lime_rank', 'ig_rank', 'deepLift_rank']].abs().sum(axis=1)
 
 # save the indiv_df
 Indiv_df.to_pickle(Indiv_filename)
+""" 
+    feature_name  feature_value  shap_value  ...  ig_rank  deepLift_rank  sum_rank
+0       Pregnant            4.0   -0.005457  ...     -2.0           -2.0       9.0
+1       Pregnant            4.0   -0.073003  ...      2.0           -1.0       7.0
+..           ...            ...         ...  ...      ...            ...       ...
+766          Age           67.0   -8.268724  ...     -7.0           -6.0      23.0
+767          Age           28.0    0.104415  ...     -5.0           -6.0      18.0
+"""
 
-# melt and save 
+# melt and save Indiv_melted
 Indiv_melted = Indiv_df.melt(ignore_index = False, id_vars=['feature_name'])
 Indiv_melted.columns = ['feature_name', 'method', 'feature_attr']
 Indiv_melted.to_pickle(Indiv_melted_filename)
+""" 
+    feature_name         method  feature_attr
+0       Pregnant  feature_value           4.0
+1       Pregnant  feature_value           4.0
+..           ...            ...           ...
+766          Age       sum_rank          23.0
+767          Age       sum_rank          18.0
+"""
 
+##-----dataframe for subset analysis: feature_value, attr, abs_attr, signed_rank-----------
+subset_analysis_df = df.copy(deep=True)
+
+# rename columns to specify the type of values: 
+# [feature_value, feature_attr, abs_feature_attr, signed_feature_rank]
+for method_name, attr_df in name_to_attr_df.items():
+    name2attrName = {}
+    name2absAttrName = {}
+    name2signedRankName = {}
+    
+    for feature_name in attr_df.columns:
+        feature_attr_name = feature_name + '_' + method_name_to_attr_name[method_name]
+        abs_feature_attr_name = 'abs_' + feature_attr_name
+        attr_df[abs_feature_attr_name] = attr_df[feature_name].abs()
+
+        name2attrName[feature_name] = feature_attr_name
+        name2absAttrName[feature_name] = abs_feature_attr_name
+        name2signedRankName[feature_name] = feature_name + '_' + method_name + '_rank'
+
+    
+    
+    attr_df = attr_df.rename(columns= name2attrName)
+    name2rank_df[method_name] = name2rank_df[method_name].rename(columns= name2signedRankName)
+
+    subset_analysis_df = pd.concat([subset_analysis_df, attr_df], axis = 1)
+    subset_analysis_df = pd.concat([subset_analysis_df, name2rank_df[method_name]], axis = 1)
+
+# save the dataframe 
+subset_analysis_filename = '../Saved/4vis/subset_analysis.pkl'
+subset_analysis_df.to_pickle(subset_analysis_filename)
 
 
 
