@@ -98,15 +98,17 @@ subset_analysis_df = df.copy(deep=True)
 # rename columns to specify the type of values: 
 # [feature_value, feature_attr, abs_feature_attr, signed_feature_rank]
 for method_name, attr_df in name_to_attr_df.items():
+    name2featvalue = {}
     name2attrName = {}
     name2absAttrName = {}
     name2signedRankName = {}
     
     for feature_name in attr_df.columns:
         feature_attr_name = feature_name + '_' + method_name_to_attr_name[method_name]
-        abs_feature_attr_name = 'abs_' + feature_attr_name
+        abs_feature_attr_name =  feature_name + '_abs_' + method_name_to_attr_name[method_name]
         attr_df[abs_feature_attr_name] = attr_df[feature_name].abs()
 
+        name2featvalue[feature_name] = feature_name + '_value'
         name2attrName[feature_name] = feature_attr_name
         name2absAttrName[feature_name] = abs_feature_attr_name
         name2signedRankName[feature_name] = feature_name + '_' + method_name + '_rank'
@@ -118,6 +120,7 @@ for method_name, attr_df in name_to_attr_df.items():
 
     subset_analysis_df = pd.concat([subset_analysis_df, attr_df], axis = 1)
     subset_analysis_df = pd.concat([subset_analysis_df, name2rank_df[method_name]], axis = 1)
+    subset_analysis_df = subset_analysis_df.rename(columns= name2featvalue)
 
 # save the dataframe 
 subset_analysis_filename = '../Saved/4vis/subset_analysis.pkl'
