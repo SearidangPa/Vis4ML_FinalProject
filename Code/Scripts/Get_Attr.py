@@ -40,7 +40,7 @@ class BinaryClassification(nn.Module):
 
 # ----------------- SHAP ------------------
 def Get_Shap_Attr(model, X):
-    shap_filename = '../Saved/Attr/Shap_nn.pkl'
+    shap_filename = '../data/Attr/Shap_nn.pkl'
     ks = KernelShap(model)
 
     X_np = X.values.astype(np.float32)
@@ -61,8 +61,8 @@ def get_weights_from_exp(exp):
     return exp_weight
 
 def Get_Lime_attr(model, X):
-    lime_weights_filename = '../Saved/Attr/lime_weights.pkl'
-    lime_infos_filename = '../Saved/Attr/lime_infos.pkl'
+    lime_weights_filename = '../data/Attr/lime_weights.pkl'
+    lime_infos_filename = '../data/Attr/lime_infos.pkl'
     X_np = X.values.astype(np.float32)
     feature_names = list(X.columns)
 
@@ -101,7 +101,7 @@ def Get_Lime_attr(model, X):
 #  -----------Integrated Gradient---------------
 
 def Get_IG_attr(model, X):
-    ig_attr_filename = '../Saved/Attr/ig_attr.pkl'
+    ig_attr_filename = '../data/Attr/ig_attr.pkl'
     ig = IntegratedGradients(model)
     X_tensor_grad = torch.tensor(X.values.astype(np.float32)).requires_grad_()   
     
@@ -123,7 +123,7 @@ def Get_IG_attr(model, X):
 #  -----------DeepLift---------------
 
 def Get_DeepLift_attr(model, X):
-    deepLift_filename = '../Saved/Attr/deepLift_attr.pkl'
+    deepLift_filename = '../data/Attr/deepLift_attr.pkl'
     dl = DeepLift(model)
     X_tensor_grad = torch.tensor(X.values.astype(np.float32)).requires_grad_()   
     
@@ -145,7 +145,7 @@ def Get_DeepLift_attr(model, X):
 #  ------------------------------------------
 
 def ProcessData():
-    data_filename = '../Saved/Model/data.pkl'
+    data_filename = '../data/Model/data.pkl'
     df = pd.read_pickle(data_filename)
     
     # split
@@ -157,10 +157,10 @@ def ProcessData():
 
 def Get_Attr_Signed_Rank(dict_name_to_attr_df, dict_name_to_rank_df):
     dict_name_to_rank_filename = {
-        'shap': '../Saved/Attr/shap_rank.pkl', 
-        'lime': '../Saved/Attr/lime_rank.pkl', 
-        'ig': '../Saved/Attr/ig_rank.pkl', 
-        'deepLift': '../Saved/Attr/deepLift_rank.pkl'
+        'shap': '../data/Attr/shap_rank.pkl', 
+        'lime': '../data/Attr/lime_rank.pkl', 
+        'ig': '../data/Attr/ig_rank.pkl', 
+        'deepLift': '../data/Attr/deepLift_rank.pkl'
     }
 
     for method_name, rank_df in dict_name_to_rank_df.items():
@@ -176,11 +176,10 @@ def Get_Attr_Signed_Rank(dict_name_to_attr_df, dict_name_to_rank_df):
         rank_df.to_pickle(dict_name_to_rank_filename[method_name]) 
 
 def main():
-    # load the dataset and normalized the data
-    X_normed, _ = ProcessData()
+    # load the dataset and normalized the data/    X_normed, _ = ProcessData()
 
     # load model and data 
-    model_path = '../Saved/Model/nn.pt'
+    model_path = '../data/Model/nn.pt'
     model = torch.load(model_path)
 
     # Generate feature attributions by various methods 

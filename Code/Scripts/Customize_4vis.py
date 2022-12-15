@@ -1,16 +1,16 @@
 import pandas as pd
 
 ## Load the Dataset and the model Prediction
-data_filename = '../Saved/Model/data.pkl'
+data_filename = '../data/Model/data.pkl'
 df =  pd.read_pickle(data_filename)
 X = df.drop(['target'], axis=1)
 y = df['target']
 
 # ----------------load all the attr values----------------
-shap_filename = '../Saved/Attr/Shap_nn.pkl'
-lime_weights_filename = '../Saved/Attr/lime_weights.pkl'
-ig_attr_filename = '../Saved/Attr/ig_attr.pkl'
-deepLift_filename = '../Saved/Attr/deepLift_attr.pkl'
+shap_filename = '../data/Attr/Shap_nn.pkl'
+lime_weights_filename = '../data/Attr/lime_weights.pkl'
+ig_attr_filename = '../data/Attr/ig_attr.pkl'
+deepLift_filename = '../data/Attr/deepLift_attr.pkl'
 
 # ----------------dict----------------
 name_to_attr_df = {
@@ -21,10 +21,10 @@ name_to_attr_df = {
 }
 
 name_to_rank_filename = {
-    'shap': '../Saved/Attr/shap_rank.pkl', 
-    'lime': '../Saved/Attr/lime_rank.pkl', 
-    'ig': '../Saved/Attr/ig_rank.pkl', 
-    'deepLift': '../Saved/Attr/deepLift_rank.pkl'
+    'shap': '../data/Attr/shap_rank.pkl', 
+    'lime': '../data/Attr/lime_rank.pkl', 
+    'ig': '../data/Attr/ig_rank.pkl', 
+    'deepLift': '../data/Attr/deepLift_rank.pkl'
 }
 
 method_name_to_attr_name = {
@@ -32,6 +32,13 @@ method_name_to_attr_name = {
     'lime': 'lime_weight', 
     'ig':  'ig_attr', 
     'deepLift':'deepLift_attr' 
+}
+
+method_name_to_feature_rank = {
+    'shap' : 'shap_rank',
+    'lime': 'lime_rank', 
+    'ig':  'ig_rank', 
+    'deepLift':'deepLift_rank' 
 }
 
 name2rank_df= {}
@@ -52,13 +59,13 @@ mean_attr['sum_rank'] = mean_attr[['shap_rank', 'lime_rank', 'ig_rank', 'deepLif
 # melt and save 
 mean_attr_melted = mean_attr.melt(ignore_index = False, id_vars=['feature_name'])
 mean_attr_melted.columns = ['feature_name', 'method', 'feature_attr']
-mean_attr_filename = '../Saved/4vis/mean_attr.pkl'
+mean_attr_filename = '../data/4vis/mean_attr.pkl'
 mean_attr_melted.to_pickle(mean_attr_filename)
 
 # # ------------Individual DataPoint Visualization----------------
 # # Melt all feature attributions into a single dataframe
-Indiv_melted_filename = '../Saved/4vis/Indiv_melted.pkl'
-Indiv_filename = '../Saved/4vis/Indiv.pkl'
+Indiv_melted_filename = '../data/4vis/Indiv_melted.pkl'
+Indiv_filename = '../data/4vis/Indiv.pkl'
 Indiv_df = X.melt(ignore_index=False)
 Indiv_df.columns = ['feature_name', 'feature_value']
 
@@ -102,28 +109,36 @@ for method_name, attr_df in name_to_attr_df.items():
     name2attrName = {}
     name2absAttrName = {}
     name2signedRankName = {}
+    name2absRankName = {}
     
     for feature_name in attr_df.columns:
         feature_attr_name = feature_name + '_' + method_name_to_attr_name[method_name]
         abs_feature_attr_name =  feature_name + '_abs_' + method_name_to_attr_name[method_name]
         attr_df[abs_feature_attr_name] = attr_df[feature_name].abs()
+        
+        abs_feature_rank_name =  feature_name + '_abs_' + method_name_to_feature_rank[method_name]
+        name2rank_df[method_name][abs_feature_rank_name] = name2rank_df[method_name][feature_name].abs()
 
         name2featvalue[feature_name] = feature_name + '_value'
+
         name2attrName[feature_name] = feature_attr_name
         name2absAttrName[feature_name] = abs_feature_attr_name
-        name2signedRankName[feature_name] = feature_name + '_' + method_name + '_rank'
 
+        name2absRankName[feature_name] = abs_feature_rank_name
+        name2signedRankName[feature_name] = feature_name + '_' + method_name + '_rank'
     
     
+
     attr_df = attr_df.rename(columns= name2attrName)
-    name2rank_df[method_name] = name2rank_df[method_name].rename(columns= name2signedRankName)
+    name2rank_df[method_name] = name2rank_df[method_name].rename(columns = name2signedRankName)
+    print(name2rank_df[method_name])
 
     subset_analysis_df = pd.concat([subset_analysis_df, attr_df], axis = 1)
     subset_analysis_df = pd.concat([subset_analysis_df, name2rank_df[method_name]], axis = 1)
     subset_analysis_df = subset_analysis_df.rename(columns= name2featvalue)
 
 # save the dataframe 
-subset_analysis_filename = '../Saved/4vis/subset_analysis.pkl'
+subset_analysis_filename = '../data/4vis/subset_analysis.pkl'
 subset_analysis_df.to_pickle(subset_analysis_filename)
 
 

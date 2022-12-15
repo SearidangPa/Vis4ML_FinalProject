@@ -113,25 +113,23 @@ def Eval_Model(model, X_test_df, y_test_df):
 
 def ProcessData():
     # load the processed dataframe 
-    data_filename = '../Saved/Model/data.pkl'
+    data_filename = '../data/Model/data.pkl'
     df = pd.read_pickle(data_filename)
 
     # split
     X = df.drop(['target'], axis=1)
     Y = df['target']
 
-    # normalize each column of the data
-    X_normalized=(X - X.mean()) / X.std()
+    # normalize each column of the data/    X_normalized=(X - X.mean()) / X.std()
 
     X_train_df, X_test_df, y_train_df, y_test_df = train_test_split(X_normalized, Y, test_size=0.25, random_state=42)
     return X_train_df, X_test_df, y_train_df, y_test_df
 
 
 def main():
-    model_path = '../Saved/Model/new.pt'
+    model_path = '../data/Model/new.pt'
     
-    # load the data
-    X_train_df, X_test_df, y_train_df, y_test_df = ProcessData()
+    # load the data/    X_train_df, X_test_df, y_train_df, y_test_df = ProcessData()
     
     # train the model
     model = BinaryClassification()    

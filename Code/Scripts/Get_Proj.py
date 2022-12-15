@@ -3,7 +3,8 @@ import pandas as pd
 
 
 def Get_tsne(df, dict_name_to_attr_df):
-    tsne_filename = '../Saved/Proj/tsne.pkl'
+    tsne_filename = '../data/projection
+/tsne.pkl'
     tsne = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=30)
 
     # put the embedding of shap values into a df
@@ -24,16 +25,18 @@ def Get_tsne(df, dict_name_to_attr_df):
     tsne_df.to_pickle(tsne_filename)
 
 def Get_tsne_feature_rank(df):
-    tsne_rank_filename = '../Saved/Proj/tsne_rank.pkl'
+    tsne_rank_filename = '../data/projection
+/tsne_rank.pkl'
     dict_name_to_rank_filename = {
-        'shap': '../Saved/Attr/shap_rank.pkl', 
-        'lime': '../Saved/Attr/lime_rank.pkl', 
-        'ig': '../Saved/Attr/ig_rank.pkl', 
-        'deepLift': '../Saved/Attr/deepLift_rank.pkl'
+        'shap': '../data/Attr/shap_rank.pkl', 
+        'lime': '../data/Attr/lime_rank.pkl', 
+        'ig': '../data/Attr/ig_rank.pkl', 
+        'deepLift': '../data/Attr/deepLift_rank.pkl'
     }
     tsne = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=30)
         
-    # compute t-sne proj for each signed rank feature attr method 
+    # compute t-sne projection
+ for each signed rank feature attr method 
     tsne_feature_rank = pd.DataFrame()
     for method_name, rank_df in dict_name_to_rank_filename.items():
         rank_df = pd.read_pickle(dict_name_to_rank_filename[method_name])
@@ -47,24 +50,24 @@ def Get_tsne_feature_rank(df):
 
 def main():
     # load the data and the attribution values
-    data_filename = '../Saved/Model/data.pkl'
+    data_filename = '../data/Model/data.pkl'
     df = pd.read_pickle(data_filename)    
     X = df.drop(['target'], axis=1)
 
     # shap 
-    shap_filename = '../Saved/Attr/Shap_nn.pkl'
+    shap_filename = '../data/Attr/Shap_nn.pkl'
     shap_values_df = pd.read_pickle(shap_filename)
 
     # Lime 
-    lime_weights_filename = '../Saved/Attr/lime_weights.pkl'
+    lime_weights_filename = '../data/Attr/lime_weights.pkl'
     lime_weights_df = pd.read_pickle(lime_weights_filename)
 
     # Integrated Gradients
-    ig_attr_filename = '../Saved/Attr/ig_attr.pkl'
+    ig_attr_filename = '../data/Attr/ig_attr.pkl'
     ig_attr_df = pd.read_pickle(ig_attr_filename)
 
     # Deep Lift
-    deepLift_filename = '../Saved/Attr/deepLift_attr.pkl'
+    deepLift_filename = '../data/Attr/deepLift_attr.pkl'
     deepLift_attr_df = pd.read_pickle(deepLift_filename)
 
     dict_name_to_attr_df = {
@@ -74,7 +77,8 @@ def main():
         'deepLift': deepLift_attr_df,
     }
 
-    # Generate the T-sne Projection
+    # Generate the T-sne projection
+ection
     Get_tsne(df, dict_name_to_attr_df)
     Get_tsne_feature_rank(df)
 

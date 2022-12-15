@@ -2,7 +2,7 @@ import pmlb
 
 def main():
     # filename to save to
-    data_filename = '../Saved/Model/data.pkl'
+    data_filename = '../Data/Model/data.pkl'
 
     # get the data from the internet
     df = pmlb.fetch_data('pima')
