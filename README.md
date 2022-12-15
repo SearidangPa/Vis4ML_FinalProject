@@ -1,3 +1,5 @@
 # Vis4ML_FinalProject
 
-Keep moving forward
+Class Project
+
+See the presentation slide in Paper Folder for explaination of the project
